@@ -146,3 +146,4 @@ curl -X POST http://localhost:8080/api/inscripciones \
 ## Autores
 
 Desarrollado para la asignatura **Desarrollo Cloud Native (CDY2204)**.
+ 
