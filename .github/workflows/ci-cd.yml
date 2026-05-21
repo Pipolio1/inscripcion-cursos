@@ -101,7 +101,7 @@ jobs:
               --name inscripcion-cursos \
               --restart unless-stopped \
               -p 8080:8080 \
-              -e ORACLE_DB_URL="${{ secrets.ORACLE_DB_URL }}" \
+              -v /home/ubuntu/wallet:/app/wallet \
               -e ORACLE_DB_USERNAME="${{ secrets.ORACLE_DB_USERNAME }}" \
               -e ORACLE_DB_PASSWORD="${{ secrets.ORACLE_DB_PASSWORD }}" \
               ${{ env.IMAGE_NAME }}:latest
