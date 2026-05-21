@@ -1,0 +1,112 @@
+name: CI/CD Pipeline - Spring Boot + Docker + AWS EC2
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/inscripcion-cursos
+
+jobs:
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build with Maven
+        run: mvn clean package -DskipTests
+
+      - name: Run tests
+        run: mvn test
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jar-artifact
+          path: target/*.jar
+
+  docker-build-and-push:
+    name: Docker Build & Push
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-to-ec2:
+    name: Deploy to AWS EC2
+    needs: docker-build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            echo "🚀 Iniciando despliegue en EC2..."
+            
+            # Detener y eliminar contenedor anterior si existe
+            docker stop inscripcion-cursos || true
+            docker rm inscripcion-cursos || true
+            
+            # Login en Docker Hub
+            echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+            
+            # Pull de la última imagen
+            docker pull ${{ env.IMAGE_NAME }}:latest
+            
+            # Ejecutar nuevo contenedor
+            docker run -d \
+              --name inscripcion-cursos \
+              --restart unless-stopped \
+              -p 8080:8080 \
+              -e ORACLE_DB_URL="${{ secrets.ORACLE_DB_URL }}" \
+              -e ORACLE_DB_USERNAME="${{ secrets.ORACLE_DB_USERNAME }}" \
+              -e ORACLE_DB_PASSWORD="${{ secrets.ORACLE_DB_PASSWORD }}" \
+              ${{ env.IMAGE_NAME }}:latest
+            
+            # Limpiar imágenes antiguas
+            docker image prune -af --filter "until=24h" || true
+            
+            echo "✅ Despliegue completado exitosamente"
