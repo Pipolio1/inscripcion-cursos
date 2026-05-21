@@ -1,5 +1,5 @@
 # Sistema de Inscripción de Cursos
-
+asd
 Proyecto desarrollado con **Spring Boot** para la asignatura Desarrollo Cloud Native. Permite gestionar cursos educativos y realizar inscripciones de estudiantes, con despliegue automático mediante CI/CD en AWS EC2.
 
 ## Tecnologías
