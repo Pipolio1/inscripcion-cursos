@@ -5,9 +5,16 @@ COPY pom.xml .
 COPY src ./src
 RUN mvn clean package -DskipTests
 
-# Etapa 2: Runtime
-FROM eclipse-temurin:21-jre
+# Etapa 2: Runtime - Ubuntu para soportar Oracle Wallet SSO
+FROM ubuntu:22.04
 WORKDIR /app
+
+# Instalar OpenJDK 21 JRE
+RUN apt-get update && \
+    apt-get install -y openjdk-21-jre-headless && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 COPY --from=build /app/target/*.jar app.jar
 EXPOSE 8080
 ENTRYPOINT ["java", "-Xms256m", "-Xmx512m", "-jar", "app.jar"]
